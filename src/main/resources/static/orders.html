@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的订单 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .order-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: box-shadow 0.2s;
+    }
+    .order-card:hover { box-shadow: var(--shadow-hover); }
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .order-no { font-size: 0.8rem; color: var(--text-muted); }
+    .order-body {
+      display: flex;
+      gap: 16px;
+    }
+    .order-cover {
+      width: 80px;
+      height: 80px;
+      border-radius: var(--radius);
+      object-fit: cover;
+      background: var(--bg-hover);
+      flex-shrink: 0;
+    }
+    .order-info { flex: 1; }
+    .order-info h3 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+    .order-info .meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 4px; }
+    .order-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-light);
+    }
+    .order-price { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    .order-actions { display: flex; gap: 8px; }
+    .tab-filter {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .tab-filter button {
+      padding: 8px 18px;
+      border: 1px solid var(--border-light);
+      border-radius: 20px;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-filter button.active, .tab-filter button:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-lighter);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+
+  <div class="app-container">
+    <div class="page-header">
+      <h1>我的订单</h1>
+    </div>
+
+    <div class="tab-filter">
+      <button class="active" onclick="filterOrders(null, this)">全部</button>
+      <button onclick="filterOrders(0, this)">待支付</button>
+      <button onclick="filterOrders(2, this)">已支付</button>
+      <button onclick="filterOrders(3, this)">已取消</button>
+      <button onclick="filterOrders(4, this)">已退款</button>
+    </div>
+
+    <div id="orderList"></div>
+    <div id="loading" class="loading hidden"><div class="spinner"></div> 加载中...</div>
+    <div id="emptyState" class="empty-state hidden">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="M2 8h20"/>
+      </svg>
+      <p>暂无订单</p>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar('orders');
+
+    if (!TokenManager.isLoggedIn()) {
+      window.location.href = '/login.html';
+    }
+
+    let currentPage = 1;
+    let statusFilter = null;
+
+    async function loadOrders(page = 1) {
+      currentPage = page;
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('orderList').innerHTML = '';
+
+      let url = `/order/list?pageNum=${page}&pageSize=10`;
+      if (statusFilter !== null) url += `&status=${statusFilter}`;
+
+      const result = await http.get(url, { silent: true });
+      document.getElementById('loading').classList.add('hidden');
+
+      if (!result || !result.data || !result.data.list || result.data.list.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+
+      const { list, pages, pageNum } = result.data;
+      document.getElementById('orderList').innerHTML = list.map(o => `
+        <div class="order-card">
+          <div class="order-header">
+            <span class="order-no">${o.orderNo}</span>
+            ${getOrderStatusTag(o.status)}
+          </div>
+          <div class="order-body">
+            ${o.snapshotCoverUrl
+              ? `<img class="order-cover" src="${o.snapshotCoverUrl}" alt="">`
+              : `<div class="order-cover" style="display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--text-muted)">暂无图片</div>`}
+            <div class="order-info">
+              <h3>${o.snapshotConcertName || '演出'}</h3>
+              <div class="meta">${o.snapshotAreaName || ''} · ${o.quantity}张</div>
+              <div class="meta">${o.snapshotVenueName || ''} · ${o.snapshotCity || ''}</div>
+              <div class="meta">下单时间：${formatTime(o.createTime)}</div>
+            </div>
+          </div>
+          <div class="order-footer">
+            <div class="order-price">${formatPrice(o.actualAmount || o.originalAmount)}</div>
+            <div class="order-actions">
+              ${o.status === 0 ? `<button class="btn btn-accent btn-sm" onclick="location.href='/pay.html?orderId=${o.orderId}'">去支付</button>` : ''}
+              ${o.status === 0 ? `<button class="btn btn-outline btn-sm" onclick="cancelOrder(${o.orderId})">取消</button>` : ''}
+              ${o.status === 2 ? `<button class="btn btn-outline btn-sm" onclick="refundOrder(${o.orderId})">申请退款</button>` : ''}
+              ${o.status === 0 || o.status === 1 ? `<button class="btn btn-outline btn-sm" onclick="deleteOrder(${o.orderId})">删除</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      // 分页
+      if (pages > 1) {
+        let pagHtml = '';
+        for (let i = 1; i <= pages; i++) {
+          pagHtml += `<button class="${i === pageNum ? 'active' : ''}" onclick="loadOrders(${i})">${i}</button>`;
+        }
+        document.getElementById('pagination').innerHTML = pagHtml;
+      } else {
+        document.getElementById('pagination').innerHTML = '';
+      }
+    }
+
+    function filterOrders(status, btn) {
+      statusFilter = status;
+      document.querySelectorAll('.tab-filter button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadOrders(1);
+    }
+
+    async function cancelOrder(orderId) {
+      const ok = await confirmAction('确定要取消此订单吗？');
+      if (!ok) return;
+      const result = await http.post('/order/cancel', { orderId });
+      if (result) {
+        showToast('取消请求已提交', 'success');
+        loadOrders(currentPage);
+      }
+    }
+
+    async function refundOrder(orderId) {
+      const ok = await confirmAction('确定要申请退款吗？退款后将无法恢复。');
+      if (!ok) return;
+      const result = await http.post('/order/cancel', { orderId });
+      if (result) {
+        showToast('退款申请已提交', 'success');
+        loadOrders(currentPage);
+      }
+    }
+
+    async function deleteOrder(orderId) {
+      const ok = await confirmAction('确定要删除此订单吗？');
+      if (!ok) return;
+      const result = await http.post('/order/delete', { orderId });
+      if (result) {
+        showToast('删除成功', 'success');
+        loadOrders(currentPage);
+      }
+    }
+
+    loadOrders(1);
+  </script>
+</body>
+</html>

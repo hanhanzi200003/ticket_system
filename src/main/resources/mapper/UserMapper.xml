@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 这里需要指定 namespace -->
+<mapper namespace = "com.example.ticket_system.login.mapper.UserMapper">
+
+    <!-- 根据手机号查询用户 -->
+    <select id = "findByPhone" resultType="com.example.ticket_system.login.entity.User">
+        SELECT * FROM user WHERE phone = #{phone}
+    </select>
+    
+    <!-- 根据邮箱查询用户 -->
+    <select id = "findByEmail" resultType="com.example.ticket_system.login.entity.User">
+        SELECT * FROM user WHERE email = #{email}
+    </select>
+    
+    <!-- 插入用户 -->
+    <insert id="createUser">
+        INSERT INTO user (user_id, phone, email, password, role, status, nickname, avatar_url, real_name_verified, create_time) 
+        VALUES (#{userId}, #{phone}, #{email}, #{password}, #{role}, #{status}, #{nickname}, #{avatarUrl}, #{realNameVerified}, #{createTime})
+    </insert>
+
+</mapper>

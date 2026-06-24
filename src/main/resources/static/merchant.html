@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>商家中心 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .merchant-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 24px;
+      margin-top: 20px;
+      padding-bottom: 60px;
+    }
+    .merchant-sidebar {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 16px 0;
+      height: fit-content;
+      position: sticky;
+      top: 80px;
+    }
+    .merchant-sidebar a {
+      display: block;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+    .merchant-sidebar a:hover { background: var(--bg-hover); color: var(--text); }
+    .merchant-sidebar a.active { background: var(--primary-lighter); color: var(--primary-dark); font-weight: 500; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* 发布表单 */
+    .publish-form {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 28px;
+    }
+    .publish-form h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 24px; }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .tier-section {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .tier-section .tier-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .tier-section .tier-header h4 { font-size: 0.9rem; font-weight: 600; }
+    .tier-remove {
+      background: none;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    /* 演唱会列表 */
+    .concert-list-item {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 20px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .concert-list-item .info h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+    .concert-list-item .info .meta { font-size: 0.85rem; color: var(--text-muted); }
+    .concert-list-item .actions { display: flex; gap: 8px; align-items: center; }
+
+    @media (max-width: 800px) {
+      .merchant-layout { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+
+  <div class="app-container">
+    <div class="merchant-layout">
+      <div class="merchant-sidebar">
+        <a href="#" class="active" onclick="switchPanel('publish', this)">发布演唱会</a>
+        <a href="#" onclick="switchPanel('drafts', this)">草稿箱</a>
+        <a href="#" onclick="switchPanel('myConcerts', this)">我的演唱会</a>
+      </div>
+
+      <!-- 发布演唱会 -->
+      <div class="panel active" id="panel-publish">
+        <div class="publish-form">
+          <h2>发布演唱会</h2>
+          <form onsubmit="handlePublish(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">演唱会名称 *</label>
+                <input type="text" class="form-input" id="pubName" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">明星ID *</label>
+                <input type="number" class="form-input" id="pubArtistId" required placeholder="输入明星ID">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">封面图URL *</label>
+              <input type="text" class="form-input" id="pubCoverImage" required placeholder="先上传图片后填入URL">
+            </div>
+            <div class="form-group">
+              <label class="form-label">详情图URL（逗号分隔，最多4张）</label>
+              <input type="text" class="form-input" id="pubDetailImages" placeholder="url1,url2,url3,url4">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">城市 *</label>
+                <input type="text" class="form-input" id="pubCity" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">场馆名称 *</label>
+                <input type="text" class="form-input" id="pubVenueName" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">详细地址 *</label>
+              <input type="text" class="form-input" id="pubAddress" required>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">演出开始时间 *</label>
+                <input type="datetime-local" class="form-input" id="pubStartTime" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">演出结束时间 *</label>
+                <input type="datetime-local" class="form-input" id="pubEndTime" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">开售时间 *</label>
+                <input type="datetime-local" class="form-input" id="pubSaleStart" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">停售时间 *</label>
+                <input type="datetime-local" class="form-input" id="pubSaleEnd" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">限购数量</label>
+              <input type="number" class="form-input" id="pubMaxQty" value="4" min="1" max="10">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">购票须知</label>
+              <textarea class="form-input" id="pubNotice" rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">演出介绍</label>
+              <textarea class="form-input" id="pubDesc" rows="4"></textarea>
+            </div>
+
+            <!-- 票档 -->
+            <div class="form-group">
+              <label class="form-label">票档信息 *</label>
+              <div id="tierList">
+                <div class="tier-section">
+                  <div class="tier-header"><h4>票档 1</h4></div>
+                  <div class="form-row">
+                    <div class="form-group"><label class="form-label">区域名称</label><input type="text" class="form-input tier-name" required></div>
+                    <div class="form-group"><label class="form-label">票价</label><input type="number" class="form-input tier-price" step="0.01" required></div>
+                  </div>
+                  <div class="form-group"><label class="form-label">库存</label><input type="number" class="form-input tier-stock" min="1" required></div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm mt-1" onclick="addTier()">+ 添加票档</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" id="publishBtn">保存草稿</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 草稿箱 -->
+      <div class="panel" id="panel-drafts">
+        <div class="page-header"><h1>草稿箱</h1></div>
+        <div id="draftList"></div>
+        <div id="draftEmpty" class="empty-state hidden"><p>暂无草稿</p></div>
+      </div>
+
+      <!-- 我的演唱会 -->
+      <div class="panel" id="panel-myConcerts">
+        <div class="page-header"><h1>我的演唱会</h1></div>
+        <div id="myConcertList"></div>
+        <div id="myConcertEmpty" class="empty-state hidden"><p>暂无演唱会</p></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar('merchant');
+
+    if (!TokenManager.isLoggedIn() || (TokenManager.getRole() !== 'merchant' && TokenManager.getRole() !== 'admin')) {
+      window.location.href = '/index.html';
+    }
+
+    function switchPanel(name, el) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.merchant-sidebar a').forEach(a => a.classList.remove('active'));
+      document.getElementById('panel-' + name).classList.add('active');
+      if (el) el.classList.add('active');
+
+      if (name === 'drafts') loadDrafts();
+      if (name === 'myConcerts') loadMyConcerts();
+    }
+
+    let tierCount = 1;
+    function addTier() {
+      tierCount++;
+      const html = `
+        <div class="tier-section">
+          <div class="tier-header">
+            <h4>票档 ${tierCount}</h4>
+            <button type="button" class="tier-remove" onclick="this.closest('.tier-section').remove()">删除</button>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">区域名称</label><input type="text" class="form-input tier-name" required></div>
+            <div class="form-group"><label class="form-label">票价</label><input type="number" class="form-input tier-price" step="0.01" required></div>
+          </div>
+          <div class="form-group"><label class="form-label">库存</label><input type="number" class="form-input tier-stock" min="1" required></div>
+        </div>`;
+      document.getElementById('tierList').insertAdjacentHTML('beforeend', html);
+    }
+
+    function toLocalDateTime(str) {
+      if (!str) return null;
+      return str.replace('T', 'T'); // datetime-local 格式: 2025-06-20T19:00
+    }
+
+    async function handlePublish(e) {
+      e.preventDefault();
+      const btn = document.getElementById('publishBtn');
+      btn.disabled = true;
+      btn.textContent = '提交中...';
+
+      // 收集票档
+      const tiers = [];
+      document.querySelectorAll('.tier-section').forEach(section => {
+        const name = section.querySelector('.tier-name').value.trim();
+        const price = parseFloat(section.querySelector('.tier-price').value);
+        const stock = parseInt(section.querySelector('.tier-stock').value);
+        if (name && !isNaN(price) && !isNaN(stock)) {
+          tiers.push({ areaName: name, price, totalStock: stock });
+        }
+      });
+
+      if (tiers.length === 0) {
+        showToast('至少需要一个票档', 'warning');
+        btn.disabled = false;
+        btn.textContent = '保存草稿';
+        return;
+      }
+
+      const detailImages = document.getElementById('pubDetailImages').value.trim()
+        ? document.getElementById('pubDetailImages').value.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const data = {
+        name: document.getElementById('pubName').value.trim(),
+        artistId: parseInt(document.getElementById('pubArtistId').value),
+        coverImage: document.getElementById('pubCoverImage').value.trim(),
+        detailImages,
+        city: document.getElementById('pubCity').value.trim(),
+        venueName: document.getElementById('pubVenueName').value.trim(),
+        address: document.getElementById('pubAddress').value.trim(),
+        startTime: toLocalDateTime(document.getElementById('pubStartTime').value),
+        endTime: toLocalDateTime(document.getElementById('pubEndTime').value),
+        saleStartTime: toLocalDateTime(document.getElementById('pubSaleStart').value),
+        saleEndTime: toLocalDateTime(document.getElementById('pubSaleEnd').value),
+        maxPurchaseQuantity: parseInt(document.getElementById('pubMaxQty').value) || 4,
+        purchaseNotice: document.getElementById('pubNotice').value.trim() || null,
+        description: document.getElementById('pubDesc').value.trim() || null,
+        ticketTiers: tiers,
+      };
+
+      const result = await http.post('/merchant/concert/publish', data);
+      btn.disabled = false;
+      btn.textContent = '保存草稿';
+
+      if (result) {
+        showToast('草稿保存成功', 'success');
+        e.target.reset();
+        document.getElementById('pubMaxQty').value = 4;
+        // 重置票档
+        document.getElementById('tierList').innerHTML = `
+          <div class="tier-section">
+            <div class="tier-header"><h4>票档 1</h4></div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">区域名称</label><input type="text" class="form-input tier-name" required></div>
+              <div class="form-group"><label class="form-label">票价</label><input type="number" class="form-input tier-price" step="0.01" required></div>
+            </div>
+            <div class="form-group"><label class="form-label">库存</label><input type="number" class="form-input tier-stock" min="1" required></div>
+          </div>`;
+        tierCount = 1;
+      }
+    }
+
+    async function loadDrafts() {
+      const result = await http.get('/merchant/concert/drafts', { silent: true });
+      const container = document.getElementById('draftList');
+      const empty = document.getElementById('draftEmpty');
+
+      if (!result || !result.data || result.data.length === 0) {
+        container.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      container.innerHTML = result.data.map(c => `
+        <div class="concert-list-item">
+          <div class="info">
+            <h3>${c.concertName}</h3>
+            <div class="meta">${c.artistName || ''} · ${c.city} · ${formatDate(c.startTime)}</div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary btn-sm" onclick="submitAudit(${c.concertId})">提交审核</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteDraft(${c.concertId})">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadMyConcerts() {
+      const result = await http.get('/merchant/concert/list', { silent: true });
+      const container = document.getElementById('myConcertList');
+      const empty = document.getElementById('myConcertEmpty');
+
+      if (!result || !result.data || result.data.length === 0) {
+        container.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      container.innerHTML = result.data.map(c => `
+        <div class="concert-list-item">
+          <div class="info">
+            <h3>${c.concertName}</h3>
+            <div class="meta">${c.artistName || ''} · ${c.city} · ${formatDate(c.startTime)}</div>
+          </div>
+          <div class="actions">
+            ${getLifecycleTag(c.lifecycleStatus)}
+            ${c.lifecycleStatus === 2 ? `<button class="btn btn-danger btn-sm" onclick="cancelConcert(${c.concertId})">取消演出</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function submitAudit(concertId) {
+      const ok = await confirmAction('确定提交审核？');
+      if (!ok) return;
+      const result = await http.post(`/merchant/concert/submit/${concertId}`);
+      if (result) {
+        showToast('已提交审核', 'success');
+        loadDrafts();
+      }
+    }
+
+    async function deleteDraft(concertId) {
+      const ok = await confirmAction('确定删除此草稿？');
+      if (!ok) return;
+      const result = await http.delete(`/merchant/concert/${concertId}`);
+      if (result) {
+        showToast('删除成功', 'success');
+        loadDrafts();
+      }
+    }
+
+    async function cancelConcert(concertId) {
+      const ok = await confirmAction('确定取消此演出？所有订单将自动退款，此操作不可恢复！');
+      if (!ok) return;
+      const result = await http.post(`/merchant/concert/${concertId}/cancel`);
+      if (result) {
+        showToast('演出已取消，正在处理退款', 'success');
+        loadMyConcerts();
+      }
+    }
+  </script>
+</body>
+</html>

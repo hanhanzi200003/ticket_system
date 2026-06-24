@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .login-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #f5f3f0 0%, #e8eff3 50%, #f0eeeb 100%);
+    }
+    .login-card {
+      width: 420px;
+      max-width: 90vw;
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-hover);
+      padding: 40px;
+    }
+    .login-logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .login-logo svg { width: 48px; height: 48px; color: var(--primary); margin-bottom: 12px; }
+    .login-logo h1 { font-size: 1.5rem; color: var(--text); font-weight: 700; }
+    .login-logo p { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+    .tab-bar {
+      display: flex;
+      border-bottom: 2px solid var(--border-light);
+      margin-bottom: 28px;
+    }
+    .tab-bar button {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .tab-bar button.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+    .login-card .btn-primary { margin-top: 8px; }
+    .form-footer {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .role-select {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .role-option {
+      flex: 1;
+      padding: 10px;
+      border: 2px solid var(--border-light);
+      border-radius: var(--radius);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .role-option:hover { border-color: var(--primary-light); }
+    .role-option.selected {
+      border-color: var(--primary);
+      background: var(--primary-lighter);
+      color: var(--primary-dark);
+    }
+    .merchant-code-group { display: none; }
+    .merchant-code-group.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="M2 8h20M8 4v4M16 4v4"/>
+        </svg>
+        <h1>票务系统</h1>
+        <p>在线购票，轻松观演</p>
+      </div>
+
+      <div class="tab-bar">
+        <button class="active" onclick="switchTab('login')">登录</button>
+        <button onclick="switchTab('register')">注册</button>
+      </div>
+
+      <!-- 登录表单 -->
+      <form id="loginForm" class="form-panel active" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label">手机号 / 邮箱</label>
+          <input type="text" class="form-input" id="loginAccount" placeholder="请输入手机号或邮箱" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码</label>
+          <input type="password" class="form-input" id="loginPassword" placeholder="请输入密码" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="loginBtn">登录</button>
+      </form>
+
+      <!-- 注册表单 -->
+      <form id="registerForm" class="form-panel" onsubmit="handleRegister(event)">
+        <div class="form-group">
+          <label class="form-label">注册角色</label>
+          <div class="role-select">
+            <div class="role-option selected" onclick="selectRole('user', this)">普通用户</div>
+            <div class="role-option" onclick="selectRole('merchant', this)">商家</div>
+          </div>
+          <input type="hidden" id="regRole" value="user">
+        </div>
+        <div class="form-group">
+          <label class="form-label">手机号</label>
+          <input type="text" class="form-input" id="regPhone" placeholder="请输入手机号（选填）">
+        </div>
+        <div class="form-group">
+          <label class="form-label">邮箱</label>
+          <input type="email" class="form-input" id="regEmail" placeholder="请输入邮箱（选填）">
+        </div>
+        <div class="form-group">
+          <label class="form-label">昵称</label>
+          <input type="text" class="form-input" id="regNickname" placeholder="请输入昵称（选填）">
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码</label>
+          <input type="password" class="form-input" id="regPassword" placeholder="请输入密码" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认密码</label>
+          <input type="password" class="form-input" id="regRePassword" placeholder="请再次输入密码" required>
+        </div>
+        <div class="form-group merchant-code-group" id="merchantCodeGroup">
+          <label class="form-label">商家注册码</label>
+          <input type="text" class="form-input" id="regVerificationCode" placeholder="请输入商家注册码">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="regBtn">注册</button>
+      </form>
+
+      <div class="form-footer">
+        登录即表示同意《用户服务协议》和《隐私政策》
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    // 已登录则跳转
+    if (TokenManager.isLoggedIn()) {
+      window.location.href = '/index.html';
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-bar button').forEach((btn, i) => {
+        btn.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+      });
+      document.getElementById('loginForm').classList.toggle('active', tab === 'login');
+      document.getElementById('registerForm').classList.toggle('active', tab === 'register');
+    }
+
+    function selectRole(role, el) {
+      document.querySelectorAll('.role-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('regRole').value = role;
+      document.getElementById('merchantCodeGroup').classList.toggle('show', role === 'merchant');
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+
+      const result = await http.post('/auth/login', {
+        account: document.getElementById('loginAccount').value.trim(),
+        password: document.getElementById('loginPassword').value,
+      });
+
+      btn.disabled = false;
+      btn.textContent = '登录';
+
+      if (result && result.data) {
+        TokenManager.setToken(result.data.token);
+        TokenManager.setUser(result.data);
+        showToast('登录成功', 'success');
+        setTimeout(() => window.location.href = '/index.html', 500);
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const phone = document.getElementById('regPhone').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+
+      if (!phone && !email) {
+        showToast('手机号和邮箱至少填写一个', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('regBtn');
+      btn.disabled = true;
+      btn.textContent = '注册中...';
+
+      const data = {
+        phone: phone || null,
+        email: email || null,
+        nickname: document.getElementById('regNickname').value.trim() || null,
+        password: document.getElementById('regPassword').value,
+        rePassword: document.getElementById('regRePassword').value,
+        role: document.getElementById('regRole').value,
+        verificationCode: document.getElementById('regVerificationCode').value.trim() || null,
+      };
+
+      const result = await http.post('/auth/regester', data);
+
+      btn.disabled = false;
+      btn.textContent = '注册';
+
+      if (result) {
+        showToast('注册成功，请登录', 'success');
+        switchTab('login');
+        document.getElementById('loginAccount').value = phone || email;
+      }
+    }
+  </script>
+</body>
+</html>

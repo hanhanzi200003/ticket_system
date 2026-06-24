@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>演出详情 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .detail-hero {
+      position: relative;
+      height: 360px;
+      background: linear-gradient(135deg, #5b7a8a, #7a9aaa);
+      overflow: hidden;
+    }
+    .detail-hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.6;
+    }
+    .detail-hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%);
+      display: flex;
+      align-items: flex-end;
+      padding: 30px;
+    }
+    .detail-hero-info { color: #fff; }
+    .detail-hero-info h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; }
+    .detail-hero-info .artist { font-size: 1.1rem; opacity: 0.9; margin-bottom: 4px; }
+    .detail-hero-info .meta { font-size: 0.9rem; opacity: 0.75; }
+
+    .detail-content {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 30px;
+      margin-top: 30px;
+      padding-bottom: 60px;
+    }
+    .detail-main {}
+    .detail-sidebar {}
+
+    .info-section {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .info-section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+    }
+    .info-row .label {
+      width: 80px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .info-row .value { color: var(--text); }
+
+    .tier-card {
+      border: 2px solid var(--border-light);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tier-card:hover { border-color: var(--primary-light); }
+    .tier-card.selected {
+      border-color: var(--primary);
+      background: var(--primary-lighter);
+    }
+    .tier-card .tier-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .tier-card .tier-name { font-weight: 600; font-size: 1rem; }
+    .tier-card .tier-price { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+    .tier-card .tier-stock { font-size: 0.8rem; color: var(--text-muted); }
+
+    .quantity-selector {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .quantity-selector button {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .quantity-selector button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+    .quantity-selector button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .quantity-selector .qty { font-size: 1.1rem; font-weight: 600; min-width: 30px; text-align: center; }
+
+    .order-summary {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 24px;
+      position: sticky;
+      top: 80px;
+    }
+    .order-summary h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+    .summary-total {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-light);
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .summary-total .price { color: var(--accent); font-size: 1.3rem; }
+
+    .detail-images {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .detail-images img {
+      width: 100%;
+      border-radius: var(--radius);
+      aspect-ratio: 4/3;
+      object-fit: cover;
+    }
+
+    @media (max-width: 800px) {
+      .detail-content { grid-template-columns: 1fr; }
+      .order-summary { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+
+  <div id="detailPage">
+    <div class="loading" id="loading"><div class="spinner"></div> 加载中...</div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar('home');
+
+    const concertId = getQueryParam('id');
+    if (!concertId) {
+      window.location.href = '/index.html';
+    }
+
+    let concert = null;
+    let selectedTier = null;
+    let quantity = 1;
+
+    async function loadDetail() {
+      const result = await http.get(`/concert/${concertId}`);
+      document.getElementById('loading').classList.add('hidden');
+
+      if (!result || !result.data) {
+        document.getElementById('detailPage').innerHTML = '<div class="empty-state"><p>演出不存在或已下架</p></div>';
+        return;
+      }
+
+      concert = result.data;
+      document.title = `${concert.concertName} - 票务系统`;
+      renderDetail();
+    }
+
+    function renderDetail() {
+      const c = concert;
+      const canBuy = c.lifecycleStatus === 2; // 售票中
+
+      document.getElementById('detailPage').innerHTML = `
+        <div class="detail-hero">
+          ${c.coverImage ? `<img src="${c.coverImage}" alt="${c.concertName}">` : ''}
+          <div class="detail-hero-overlay">
+            <div class="detail-hero-info">
+              <h1>${c.concertName}</h1>
+              <div class="artist">${c.artistName || ''}</div>
+              <div class="meta">${c.city} · ${c.venueName || ''} · ${formatDate(c.startTime)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="app-container">
+          <div class="detail-content">
+            <div class="detail-main">
+              <div class="info-section">
+                <h2>演出信息</h2>
+                <div class="info-row"><span class="label">时间</span><span class="value">${formatTime(c.startTime)} - ${formatTime(c.endTime)}</span></div>
+                <div class="info-row"><span class="label">场馆</span><span class="value">${c.venueName || '-'}</span></div>
+                <div class="info-row"><span class="label">地址</span><span class="value">${c.address || '-'}</span></div>
+                <div class="info-row"><span class="label">售票期</span><span class="value">${formatTime(c.saleStartTime)} 至 ${formatTime(c.saleEndTime)}</span></div>
+                <div class="info-row"><span class="label">限购</span><span class="value">每人最多 ${c.maxPurchaseQuantity || 4} 张</span></div>
+              </div>
+
+              ${c.detailImages && c.detailImages.length > 0 ? `
+              <div class="info-section">
+                <h2>演出图集</h2>
+                <div class="detail-images">
+                  ${c.detailImages.map(img => `<img src="${img}" alt="详情图">`).join('')}
+                </div>
+              </div>` : ''}
+
+              ${c.description ? `
+              <div class="info-section">
+                <h2>演出介绍</h2>
+                <div style="font-size:0.9rem;line-height:1.8;color:var(--text-secondary);white-space:pre-wrap">${c.description}</div>
+              </div>` : ''}
+
+              ${c.purchaseNotice ? `
+              <div class="info-section">
+                <h2>购票须知</h2>
+                <div style="font-size:0.9rem;line-height:1.8;color:var(--text-secondary);white-space:pre-wrap">${c.purchaseNotice}</div>
+              </div>` : ''}
+            </div>
+
+            <div class="detail-sidebar">
+              <div class="order-summary">
+                <h2 style="font-size:1.1rem;font-weight:600;margin-bottom:16px">选择票档</h2>
+                ${c.ticketTiers && c.ticketTiers.length > 0 ? c.ticketTiers.map(t => `
+                  <div class="tier-card ${selectedTier && selectedTier.tierId === t.tierId ? 'selected' : ''}"
+                       onclick="selectTier(${t.tierId})">
+                    <div class="tier-header">
+                      <span class="tier-name">${t.areaName}</span>
+                      <span class="tier-price">${formatPrice(t.price)}</span>
+                    </div>
+                    <div class="tier-stock">
+                      ${t.availableStock > 0
+                        ? `剩余 ${t.availableStock} 张`
+                        : '<span style="color:var(--danger)">已售罄</span>'}
+                    </div>
+                  </div>
+                `).join('') : '<p style="color:var(--text-muted);font-size:0.9rem">暂无票档信息</p>'}
+
+                ${selectedTier ? `
+                <div class="quantity-selector">
+                  <span style="font-size:0.9rem;color:var(--text-secondary)">数量</span>
+                  <button onclick="changeQty(-1)" ${quantity <= 1 ? 'disabled' : ''}>-</button>
+                  <span class="qty">${quantity}</span>
+                  <button onclick="changeQty(1)" ${quantity >= (c.maxPurchaseQuantity || 4) || quantity >= (selectedTier.availableStock || 0) ? 'disabled' : ''}>+</button>
+                </div>
+                ` : ''}
+
+                <div style="margin-top:20px">
+                  <div class="summary-row">
+                    <span>票档</span>
+                    <span>${selectedTier ? selectedTier.areaName : '请选择'}</span>
+                  </div>
+                  <div class="summary-row">
+                    <span>数量</span>
+                    <span>${selectedTier ? quantity : 0}</span>
+                  </div>
+                  <div class="summary-total">
+                    <span>合计</span>
+                    <span class="price">${selectedTier ? formatPrice(selectedTier.price * quantity) : '¥0.00'}</span>
+                  </div>
+                </div>
+
+                <button class="btn btn-accent btn-block btn-lg mt-2"
+                        onclick="handleBuy()"
+                        ${!canBuy || !selectedTier || (selectedTier.availableStock <= 0) ? 'disabled' : ''}>
+                  ${!canBuy ? '暂未开售' : (selectedTier && selectedTier.availableStock <= 0) ? '已售罄' : '立即购买'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function selectTier(tierId) {
+      selectedTier = concert.ticketTiers.find(t => t.tierId === tierId);
+      quantity = 1;
+      renderDetail();
+    }
+
+    function changeQty(delta) {
+      const maxQty = Math.min(concert.maxPurchaseQuantity || 4, selectedTier.availableStock || 0);
+      quantity = Math.max(1, Math.min(maxQty, quantity + delta));
+      renderDetail();
+    }
+
+    async function handleBuy() {
+      if (!TokenManager.isLoggedIn()) {
+        showToast('请先登录', 'warning');
+        setTimeout(() => window.location.href = '/login.html', 1000);
+        return;
+      }
+
+      if (!selectedTier) {
+        showToast('请选择票档', 'warning');
+        return;
+      }
+
+      const ok = await confirmAction(`确认购买 ${selectedTier.areaName} ${quantity} 张，共 ${formatPrice(selectedTier.price * quantity)}？`);
+      if (!ok) return;
+
+      const result = await http.post('/order/create', {
+        concertId: concert.concertId,
+        tierId: selectedTier.tierId,
+        quantity: quantity,
+      });
+
+      if (result && result.data) {
+        showToast('下单成功，请尽快支付', 'success');
+        setTimeout(() => window.location.href = `/pay.html?orderId=${result.data.orderId}`, 500);
+      }
+    }
+
+    loadDetail();
+  </script>
+</body>
+</html>

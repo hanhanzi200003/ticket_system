@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .hero {
+      background: linear-gradient(135deg, #5b7a8a 0%, #7a9aaa 60%, #a0bcc8 100%);
+      color: #fff;
+      padding: 60px 0 50px;
+      margin-bottom: 30px;
+    }
+    .hero h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+    .hero p { font-size: 1rem; opacity: 0.85; }
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-top: 24px;
+      max-width: 500px;
+    }
+    .search-bar input {
+      flex: 1;
+      padding: 12px 18px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      outline: none;
+    }
+    .search-bar button {
+      padding: 12px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .search-bar button:hover { background: #b38558; }
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-lighter);
+    }
+    .concert-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+    .concert-card {
+      cursor: pointer;
+    }
+    .concert-card .card-img {
+      aspect-ratio: 3/4;
+      background: linear-gradient(135deg, var(--bg-hover), var(--border-light));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    .concert-card .status-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    @media (max-width: 900px) { .concert-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .concert-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+
+  <div class="hero">
+    <div class="app-container">
+      <h1>发现精彩演出</h1>
+      <p>热门演唱会、音乐节，一站购票</p>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="搜索演唱会、艺人...">
+        <button onclick="searchConcerts()">搜索</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <div class="filter-bar" id="filterBar">
+      <button class="filter-btn active" onclick="filterCity('')">全部</button>
+    </div>
+
+    <div id="concertList" class="concert-grid"></div>
+
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div> 加载中...
+    </div>
+
+    <div id="emptyState" class="empty-state hidden">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="M2 8h20M8 4v4M16 4v4"/>
+      </svg>
+      <p>暂无演出信息</p>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    // 未登录自动跳转登录页
+    if (!TokenManager.isLoggedIn()) {
+      window.location.href = '/login.html';
+    }
+
+    renderNavbar('home');
+
+    let currentPage = 1;
+    let currentCity = '';
+    const pageSize = 12;
+
+    // 加载演唱会列表
+    async function loadConcerts(page = 1) {
+      currentPage = page;
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('concertList').innerHTML = '';
+
+      const result = await http.get(`/concert/list?pageNum=${page}&pageSize=${pageSize}${currentCity ? '&city=' + currentCity : ''}`, { silent: true });
+      document.getElementById('loading').classList.add('hidden');
+
+      if (!result || !result.data || result.data.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+
+      const list = result.data;
+      const html = list.map(c => `
+        <div class="card concert-card" onclick="location.href='/detail.html?id=${c.concertId}'">
+          <div class="card-img" style="position:relative">
+            ${c.posterUrl
+              ? `<img src="${c.posterUrl}" alt="${c.concertName}" style="width:100%;height:100%;object-fit:cover">`
+              : `<span>${c.concertName}</span>`}
+            ${c.status === 2 ? '<span class="tag tag-success" style="position:absolute;top:8px;right:8px">售票中</span>' : ''}
+            ${c.status === 1 ? '<span class="tag tag-warning" style="position:absolute;top:8px;right:8px">即将开售</span>' : ''}
+            ${c.status === 3 ? '<span class="tag tag-info" style="position:absolute;top:8px;right:8px">已结束</span>' : ''}
+          </div>
+          <div class="card-body">
+            <div class="card-title">${c.concertName}</div>
+            <div class="card-meta">
+              <span>${c.artistName || ''}</span>
+              <span>${c.city} · ${formatDate(c.startTime)}</span>
+            </div>
+            <div class="card-price">${formatPrice(c.minPrice)} <span>起</span></div>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('concertList').innerHTML = html;
+    }
+
+    // 城市筛选
+    async function loadCities() {
+      // 从列表数据中提取城市
+      const result = await http.get('/concert/list?pageNum=1&pageSize=50', { silent: true });
+      if (result && result.data) {
+        const cities = [...new Set(result.data.map(c => c.city).filter(Boolean))];
+        const bar = document.getElementById('filterBar');
+        bar.innerHTML = `<button class="filter-btn ${currentCity === '' ? 'active' : ''}" onclick="filterCity('')">全部</button>` +
+          cities.map(c => `<button class="filter-btn ${currentCity === c ? 'active' : ''}" onclick="filterCity('${c}')">${c}</button>`).join('');
+      }
+    }
+
+    function filterCity(city) {
+      currentCity = city;
+      loadConcerts(1);
+      loadCities();
+    }
+
+    function searchConcerts() {
+      // 当前后端不支持关键词搜索，按城市筛选
+      const keyword = document.getElementById('searchInput').value.trim();
+      if (keyword) {
+        filterCity(keyword);
+      } else {
+        filterCity('');
+      }
+    }
+
+    // 初始化
+    loadConcerts(1);
+    loadCities();
+  </script>
+</body>
+</html>

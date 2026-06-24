@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>支付 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .pay-page {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .pay-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow);
+      padding: 32px;
+    }
+    .pay-card h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .pay-info {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .pay-info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+    }
+    .pay-info-row .label { color: var(--text-muted); }
+    .pay-amount {
+      text-align: center;
+      margin: 24px 0;
+    }
+    .pay-amount .amount {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .pay-amount .label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .pay-methods {
+      margin-bottom: 24px;
+    }
+    .pay-methods h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+    }
+    .pay-method {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      border: 2px solid var(--border-light);
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pay-method:hover { border-color: var(--primary-light); }
+    .pay-method.selected { border-color: var(--primary); background: var(--primary-lighter); }
+    .pay-method .method-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+    .pay-method .method-name { font-weight: 500; }
+    .pay-method .method-desc { font-size: 0.8rem; color: var(--text-muted); }
+    .pay-countdown {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .pay-countdown span { color: var(--danger); font-weight: 600; }
+    .pay-success {
+      text-align: center;
+      padding: 40px 0;
+    }
+    .pay-success svg {
+      width: 64px;
+      height: 64px;
+      color: var(--success);
+      margin-bottom: 16px;
+    }
+    .pay-success h3 { font-size: 1.3rem; margin-bottom: 8px; }
+    .pay-success p { color: var(--text-muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+
+  <div class="pay-page" id="payPage">
+    <div class="loading"><div class="spinner"></div> 加载中...</div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar('orders');
+
+    const orderId = getQueryParam('orderId');
+    if (!orderId) {
+      window.location.href = '/orders.html';
+    }
+
+    let order = null;
+    let countdownTimer = null;
+
+    async function loadOrder() {
+      const result = await http.get(`/order/${orderId}`);
+      if (!result || !result.data) {
+        document.getElementById('payPage').innerHTML = '<div class="empty-state"><p>订单不存在</p></div>';
+        return;
+      }
+      order = result.data;
+      renderPayPage();
+    }
+
+    function renderPayPage() {
+      if (order.status === 2) {
+        // 已支付
+        renderPaySuccess();
+        return;
+      }
+      if (order.status === 3 || order.status === 4) {
+        document.getElementById('payPage').innerHTML = `
+          <div class="pay-card">
+            <div class="pay-success">
+              <p style="color:var(--text-muted);font-size:1rem">${order.status === 3 ? '订单已取消' : '订单已退款'}</p>
+              <button class="btn btn-outline mt-2" onclick="location.href='/orders.html'">查看订单</button>
+            </div>
+          </div>`;
+        return;
+      }
+
+      // 待支付
+      const expireTime = order.expireTime ? new Date(order.expireTime) : null;
+      const remaining = expireTime ? Math.max(0, Math.floor((expireTime - Date.now()) / 1000)) : 600;
+
+      document.getElementById('payPage').innerHTML = `
+        <div class="pay-card">
+          <h2>确认支付</h2>
+
+          <div class="pay-info">
+            <div class="pay-info-row"><span class="label">演出</span><span>${order.snapshotConcertName || '-'}</span></div>
+            <div class="pay-info-row"><span class="label">票档</span><span>${order.snapshotAreaName || '-'}</span></div>
+            <div class="pay-info-row"><span class="label">数量</span><span>${order.quantity} 张</span></div>
+            <div class="pay-info-row"><span class="label">订单号</span><span style="font-size:0.8rem">${order.orderNo}</span></div>
+          </div>
+
+          <div class="pay-amount">
+            <div class="amount">${formatPrice(order.actualAmount || order.originalAmount)}</div>
+            <div class="label">应付金额</div>
+          </div>
+
+          <div class="pay-countdown">
+            请在 <span id="countdown">${formatCountdown(remaining)}</span> 内完成支付
+          </div>
+
+          <div class="pay-methods">
+            <h3>支付方式</h3>
+            <div class="pay-method selected" onclick="selectMethod(this)">
+              <div class="method-icon" style="background:var(--success-light);color:var(--success)">模拟</div>
+              <div><div class="method-name">模拟支付</div><div class="method-desc">测试用，直接成功</div></div>
+            </div>
+          </div>
+
+          <button class="btn btn-accent btn-block btn-lg" onclick="handlePay()" id="payBtn">确认支付</button>
+          <button class="btn btn-outline btn-block mt-1" onclick="handleCancel()">取消订单</button>
+        </div>`;
+
+      // 倒计时
+      let seconds = remaining;
+      countdownTimer = setInterval(() => {
+        seconds--;
+        const el = document.getElementById('countdown');
+        if (el) el.textContent = formatCountdown(seconds);
+        if (seconds <= 0) {
+          clearInterval(countdownTimer);
+          showToast('订单已超时', 'warning');
+          setTimeout(() => location.href = '/orders.html', 1500);
+        }
+      }, 1000);
+    }
+
+    function formatCountdown(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return `${m}分${String(sec).padStart(2, '0')}秒`;
+    }
+
+    function selectMethod(el) {
+      document.querySelectorAll('.pay-method').forEach(m => m.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+
+    async function handlePay() {
+      const btn = document.getElementById('payBtn');
+      btn.disabled = true;
+      btn.textContent = '支付中...';
+
+      // 1. 准备支付
+      const prepareResult = await http.post('/order/prepare-pay', { orderId: order.orderId });
+      if (!prepareResult) {
+        btn.disabled = false;
+        btn.textContent = '确认支付';
+        return;
+      }
+
+      // 2. 确认支付
+      const payResult = await http.post('/order/pay', { orderId: order.orderId });
+      if (payResult && payResult.data) {
+        if (countdownTimer) clearInterval(countdownTimer);
+        order = payResult.data;
+        renderPaySuccess();
+      } else {
+        btn.disabled = false;
+        btn.textContent = '确认支付';
+      }
+    }
+
+    function renderPaySuccess() {
+      document.getElementById('payPage').innerHTML = `
+        <div class="pay-card">
+          <div class="pay-success">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <h3>支付成功</h3>
+            <p>订单号：${order.orderNo}</p>
+            <p>金额：${formatPrice(order.actualAmount || order.originalAmount)}</p>
+            <div style="margin-top:24px;display:flex;gap:12px;justify-content:center">
+              <button class="btn btn-primary" onclick="location.href='/orders.html'">查看订单</button>
+              <button class="btn btn-outline" onclick="location.href='/index.html'">继续浏览</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function handleCancel() {
+      const ok = await confirmAction('确定要取消此订单吗？');
+      if (!ok) return;
+
+      const result = await http.post('/order/cancel', { orderId: order.orderId });
+      if (result) {
+        showToast('取消请求已提交', 'success');
+        setTimeout(() => location.href = '/orders.html', 1000);
+      }
+    }
+
+    loadOrder();
+  </script>
+</body>
+</html>

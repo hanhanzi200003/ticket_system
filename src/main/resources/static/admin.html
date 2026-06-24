@@ -1,0 +1,204 @@
+http://localhost:8080/orders.html<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - 票务系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .admin-layout {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 24px;
+      margin-top: 20px;
+      padding-bottom: 60px;
+    }
+    .admin-sidebar {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 16px 0;
+      height: fit-content;
+      position: sticky;
+      top: 80px;
+    }
+    .admin-sidebar a {
+      display: block;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+    .admin-sidebar a:hover { background: var(--bg-hover); color: var(--text); }
+    .admin-sidebar a.active { background: var(--primary-lighter); color: var(--primary-dark); font-weight: 500; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 20px;
+    }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary); }
+    .stat-card .stat-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+    .audit-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .audit-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+    .audit-card .meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
+    .audit-card .actions { display: flex; gap: 10px; margin-top: 16px; }
+    .audit-card .remark-input { margin-top: 12px; }
+
+    @media (max-width: 800px) {
+      .admin-layout { grid-template-columns: 1fr; }
+      .stat-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+
+  <div class="app-container">
+    <div class="admin-layout">
+      <div class="admin-sidebar">
+        <a href="#" class="active" onclick="switchPanel('audit', this)">审核管理</a>
+        <a href="#" onclick="switchPanel('users', this)">用户管理</a>
+      </div>
+
+      <!-- 审核管理 -->
+      <div class="panel active" id="panel-audit">
+        <div class="page-header">
+          <h1>审核管理</h1>
+          <p>审核商家提交的演唱会</p>
+        </div>
+        <div id="auditList"></div>
+        <div id="auditEmpty" class="empty-state hidden"><p>暂无待审核内容</p></div>
+      </div>
+
+      <!-- 用户管理 -->
+      <div class="panel" id="panel-users">
+        <div class="page-header">
+          <h1>用户管理</h1>
+        </div>
+        <div class="stat-cards" id="userStats">
+          <div class="stat-card">
+            <div class="stat-value" id="totalUsers">-</div>
+            <div class="stat-label">总用户数</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>昵称</th>
+                <th>手机号</th>
+                <th>邮箱</th>
+                <th>角色</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr><td colspan="7" class="text-center" style="color:var(--text-muted)">用户管理功能需要后端提供用户列表接口</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar('admin');
+
+    if (!TokenManager.isLoggedIn() || TokenManager.getRole() !== 'admin') {
+      window.location.href = '/index.html';
+    }
+
+    function switchPanel(name, el) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.admin-sidebar a').forEach(a => a.classList.remove('active'));
+      document.getElementById('panel-' + name).classList.add('active');
+      if (el) el.classList.add('active');
+
+      if (name === 'audit') loadPendingConcerts();
+    }
+
+    // 加载待审核演唱会
+    async function loadPendingConcerts() {
+      const result = await http.get('/admin/concert/pending', { silent: true });
+      const container = document.getElementById('auditList');
+      const empty = document.getElementById('auditEmpty');
+
+      if (!result || !result.data || result.data.length === 0) {
+        container.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      container.innerHTML = result.data.map(c => `
+        <div class="audit-card">
+          <h3>${c.concertName}</h3>
+          <div class="meta">
+            艺人：${c.artistName || '-'} · 城市：${c.city} · 场馆：${c.venueName || '-'}
+          </div>
+          <div class="meta">
+            演出时间：${formatTime(c.startTime)} - ${formatTime(c.endTime)}
+          </div>
+          <div class="meta">
+            售票时间：${formatTime(c.saleStartTime)} - ${formatTime(c.saleEndTime)}
+          </div>
+          <div class="remark-input">
+            <input type="text" class="form-input" id="remark-${c.concertId}" placeholder="审核备注（拒绝时填写）">
+          </div>
+          <div class="actions">
+            <button class="btn btn-success btn-sm" onclick="auditConcert(${c.concertId}, 1)" style="background:var(--success);color:#fff">通过</button>
+            <button class="btn btn-danger btn-sm" onclick="auditConcert(${c.concertId}, 2)">拒绝</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function auditConcert(concertId, auditResult) {
+      const remark = document.getElementById(`remark-${concertId}`)?.value.trim() || null;
+
+      if (auditResult === 2 && !remark) {
+        showToast('拒绝时请填写审核备注', 'warning');
+        return;
+      }
+
+      const ok = await confirmAction(auditResult === 1 ? '确定通过审核？' : '确定拒绝审核？');
+      if (!ok) return;
+
+      const result = await http.post('/admin/concert/audit', {
+        concertId,
+        auditResult,
+        auditRemark: remark,
+      });
+
+      if (result) {
+        showToast(auditResult === 1 ? '审核通过' : '已拒绝', 'success');
+        loadPendingConcerts();
+      }
+    }
+
+    // 初始化
+    loadPendingConcerts();
+  </script>
+</body>
+</html>
