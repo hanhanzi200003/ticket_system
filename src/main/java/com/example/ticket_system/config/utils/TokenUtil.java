@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * JWT Token 工具类（无状态 + Redis 黑名单）
@@ -58,6 +59,7 @@ public class TokenUtil {
         Date expiration = new Date(now + TOKEN_EXPIRE_MS);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userInfo.getUserId()))
                 .claim("role", userInfo.getRole())
                 .claim("status", userInfo.getStatus() != null ? userInfo.getStatus() : 1)

@@ -35,8 +35,7 @@ public class TokenFilter implements Filter {
             "/detail.html",
             "/pay.html",
             "/merchant.html",
-            "/admin.html",
-            "/concert/"
+            "/admin.html"
     };
 
     // 仅管理员可访问的路径前缀

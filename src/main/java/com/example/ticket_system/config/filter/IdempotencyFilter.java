@@ -47,12 +47,12 @@ public class IdempotencyFilter implements Filter {
     /** 幂等 Key 过期时间（秒） */
     private static final long IDEMPOTENT_EXPIRE_SECONDS = 30;
 
-    /** 不需要幂等校验的路径（GET 请求自动跳过，这里配 POST 白名单） */
-    private static final String[] SKIP_PATHS = {
-            "/auth/login",
-            "/auth/regester",
-            "/order/list",
-            "/order/prepare-pay"
+    /** 需要幂等校验的路径（只有这些路径会进行幂等检查） */
+    private static final String[] REQUIRE_PATHS = {
+            "/order/create",      // 下单
+            "/order/cancel",      // 取消订单
+            "/order/pay",         // 支付
+            "/admin/concert/audit" // 审核演唱会
     };
 
     @Override
@@ -70,13 +70,20 @@ public class IdempotencyFilter implements Filter {
             return;
         }
 
-        // 白名单路径跳过
+        // 只有需要幂等校验的路径才进行幂等检查
         String uri = request.getRequestURI();
-        for (String skipPath : SKIP_PATHS) {
-            if (uri.equals(skipPath) || uri.startsWith(skipPath + "/")) {
-                filterChain.doFilter(request, response);
-                return;
+        boolean requireIdempotency = false;
+        for (String requirePath : REQUIRE_PATHS) {
+            if (uri.equals(requirePath) || uri.startsWith(requirePath + "/")) {
+                requireIdempotency = true;
+                break;
             }
+        }
+
+        // 不需要幂等校验的路径直接放行
+        if (!requireIdempotency) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
         // 获取幂等 Key

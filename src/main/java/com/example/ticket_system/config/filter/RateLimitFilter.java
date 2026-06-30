@@ -8,9 +8,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * Redis 限流过滤器
@@ -32,6 +35,9 @@ public class RateLimitFilter implements Filter {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     /** 每秒最大请求数 */
     private static final int MAX_REQUESTS_PER_SECOND = 5;
 
@@ -50,9 +56,10 @@ public class RateLimitFilter implements Filter {
         // 获取用户标识：优先用 userId，未登录用 IP
         String identity = resolveIdentity(request);
 
-        // 按秒粒度计数
+        // 按接口 + 秒粒度计数（每个接口独立限流）
+        String uri = request.getRequestURI();
         long currentSecond = System.currentTimeMillis() / 1000;
-        String counterKey = RATE_LIMIT_PREFIX + identity + ":" + currentSecond;
+        String counterKey = RATE_LIMIT_PREFIX + identity + ":" + uri + ":" + currentSecond;
 
         // Redis INCR + EXPIRE（原子操作用 Lua 脚本保证）
         long count = incrementWithExpire(counterKey, COUNTER_EXPIRE_SECONDS);
@@ -81,13 +88,13 @@ public class RateLimitFilter implements Filter {
                 "    redis.call('expire', KEYS[1], ARGV[1]) " +
                 "end " +
                 "return count";
-            Long result = redisUtil.getRedisTemplate().execute(
-                    new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class),
-                    java.util.Collections.singletonList(key),
+            Long result = redisUtil.getStringRedisTemplate().execute(
+                    new DefaultRedisScript<>(luaScript, Long.class),
+                    Collections.singletonList(key),
                     String.valueOf(expireSeconds));
             return result != null ? result : 0;
         } catch (Exception e) {
-            log.error("[限流] Redis 递增失败，放行请求", e);
+            log.error("[限流] Redis 递增失败，放行请求，key={}, expireSeconds={}, error={}", key, expireSeconds, e.getMessage(), e);
             return 0;
         }
     }

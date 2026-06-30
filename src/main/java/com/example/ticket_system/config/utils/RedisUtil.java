@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -31,6 +32,9 @@ public class RedisUtil {
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     /**
@@ -38,6 +42,13 @@ public class RedisUtil {
      */
     public RedisTemplate<String, Object> getRedisTemplate() {
         return redisTemplate;
+    }
+
+    /**
+     * 暴露 StringRedisTemplate 供需要纯字符串序列化的场景使用（如限流 Lua 脚本）
+     */
+    public StringRedisTemplate getStringRedisTemplate() {
+        return stringRedisTemplate;
     }
     
     // ==================== 熔断器状态 ====================

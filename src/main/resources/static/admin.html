@@ -99,6 +99,14 @@ http://localhost:8080/orders.html<!DOCTYPE html>
             <div class="stat-label">总用户数</div>
           </div>
         </div>
+        <div style="margin-bottom: 16px;">
+          <label style="margin-right: 8px;">角色筛选：</label>
+          <select id="roleFilter" class="form-input" style="width: auto; display: inline-block;" onchange="loadUserList()">
+            <option value="">全部</option>
+            <option value="user">普通用户</option>
+            <option value="merchant">商家</option>
+          </select>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -113,7 +121,7 @@ http://localhost:8080/orders.html<!DOCTYPE html>
               </tr>
             </thead>
             <tbody id="userTableBody">
-              <tr><td colspan="7" class="text-center" style="color:var(--text-muted)">用户管理功能需要后端提供用户列表接口</td></tr>
+              <tr><td colspan="7" class="text-center" style="color:var(--text-muted)">加载中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -195,6 +203,78 @@ http://localhost:8080/orders.html<!DOCTYPE html>
         showToast(auditResult === 1 ? '审核通过' : '已拒绝', 'success');
         loadPendingConcerts();
       }
+    }
+
+    // 加载用户列表
+    async function loadUserList() {
+      const role = document.getElementById('roleFilter').value;
+      const result = await http.get('/admin/users', { role }, { silent: true });
+
+      if (!result || !result.data) {
+        document.getElementById('userTableBody').innerHTML = '<tr><td colspan="7" class="text-center" style="color:var(--text-muted)">加载失败</td></tr>';
+        return;
+      }
+
+      const users = result.data.users || [];
+      const total = result.data.total || 0;
+
+      // 更新统计卡片
+      document.getElementById('totalUsers').textContent = total;
+
+      if (users.length === 0) {
+        document.getElementById('userTableBody').innerHTML = '<tr><td colspan="7" class="text-center" style="color:var(--text-muted)">暂无数据</td></tr>';
+        return;
+      }
+
+      const roleMap = { user: '普通用户', merchant: '商家', admin: '管理员' };
+      const statusMap = { 0: '已封禁', 1: '正常' };
+
+      document.getElementById('userTableBody').innerHTML = users.map(u => `
+        <tr>
+          <td>${u.userId}</td>
+          <td>${u.nickname || '-'}</td>
+          <td>${u.phone || '-'}</td>
+          <td>${u.email || '-'}</td>
+          <td>${roleMap[u.role] || u.role}</td>
+          <td>
+            <span class="badge ${u.status === 1 ? 'badge-success' : 'badge-danger'}">
+              ${statusMap[u.status] || '未知'}
+            </span>
+          </td>
+          <td>
+            ${u.role !== 'admin' ? `
+              <button class="btn btn-sm ${u.status === 1 ? 'btn-danger' : 'btn-success'}"
+                      onclick="toggleUserStatus('${u.userId}', ${u.status === 1 ? 0 : 1})">
+                ${u.status === 1 ? '封禁' : '解封'}
+              </button>
+            ` : '<span style="color:var(--text-muted)">-</span>'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // 封禁/解封用户
+    async function toggleUserStatus(userId, newStatus) {
+      const action = newStatus === 0 ? '封禁' : '解封';
+      const ok = await confirmAction(`确定要${action}该用户吗？`);
+      if (!ok) return;
+
+      const result = await http.post(`/admin/toggleStatus/${userId}?status=${newStatus}`);
+      if (result) {
+        showToast(`${action}成功`, 'success');
+        loadUserList();
+      }
+    }
+
+    // 切换面板时加载数据
+    function switchPanel(name, el) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.admin-sidebar a').forEach(a => a.classList.remove('active'));
+      document.getElementById('panel-' + name).classList.add('active');
+      if (el) el.classList.add('active');
+
+      if (name === 'audit') loadPendingConcerts();
+      if (name === 'users') loadUserList();
     }
 
     // 初始化

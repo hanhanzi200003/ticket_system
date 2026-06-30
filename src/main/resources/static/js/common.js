@@ -46,7 +46,8 @@ const http = {
     }
     // 幂等键（写操作自动添加）
     if (['POST', 'PUT', 'DELETE'].includes(method) && !options.skipIdempotency) {
-      headers['X-Idempotency-Key'] = `${TokenManager.getUser()?.userId || 'anon'}:${url}:${Date.now()}`;
+      const cleanUrl = url.split('?')[0];
+      headers['X-Idempotency-Key'] = `${TokenManager.getUser()?.userId || 'anon'}:${cleanUrl}:${Date.now()}`;
     }
 
     const config = {
@@ -183,6 +184,21 @@ async function logout() {
   TokenManager.clear();
   window.location.href = '/login.html';
 }
+
+// ==================== 全局状态检查 ====================
+// 页面加载时检查用户状态（被封禁的用户立即踢出）
+document.addEventListener('DOMContentLoaded', async () => {
+  if (TokenManager.isLoggedIn()) {
+    // 调用一个轻量级的鉴权接口验证用户状态
+    const result = await http.get('/user/check', { silent: true });
+    if (!result) {
+      // 用户已被封禁或 token 失效
+      TokenManager.clear();
+      showToast('您的账号已被封禁或登录已过期', 'error');
+      setTimeout(() => { window.location.href = '/login.html'; }, 1500);
+    }
+  }
+});
 
 // ==================== 工具函数 ====================
 function formatTime(dt) {

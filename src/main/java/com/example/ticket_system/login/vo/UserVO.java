@@ -1,9 +1,12 @@
 package com.example.ticket_system.login.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 @Data
 public class UserVO {
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
     private String phone;
     private String email;
